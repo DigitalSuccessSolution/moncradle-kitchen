@@ -1,0 +1,402 @@
+﻿"use client";
+
+import React, { useState } from "react";
+import Image from "next/image";
+import { Sparkles, ArrowRight, CheckCircle2, ShieldCheck, Mail, Lock, User, Phone, ChevronLeft, Loader2 } from "lucide-react";
+import { useKitchenAuth } from "@/context/KitchenAuthContext";
+import { useRouter } from "next/navigation";
+
+export default function MobileOnboardingModal() {
+  const { isAuthenticated, login, sendRegisterOtp, register } = useKitchenAuth();
+  const router = useRouter();
+
+  // Navigation States
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [viewState, setViewState] = useState<"onboarding" | "auth-select" | "login" | "register-step1" | "register-step2">("onboarding");
+
+  // Form States
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  if (isAuthenticated) return null;
+
+  // -- SLIDER LOGIC --
+  const handleNextSlide = () => {
+    if (currentSlide < 2) {
+      setCurrentSlide(currentSlide + 1);
+    } else {
+      setViewState("auth-select");
+    }
+  };
+
+  const slides = [
+    {
+      id: 1,
+      title: "Streamline Your Cloud Kitchen Operations",
+      desc: "Manage orders, track inventory, and monitor production batches in real-time from anywhere.",
+      icon: <Sparkles className="w-12 h-12 text-[#A5D8FF]" />
+    },
+    {
+      id: 2,
+      title: "Real-time Order Syncing & Updates",
+      desc: "Never miss an order. Get instant notifications and manage multi-brand orders in one unified dashboard.",
+      icon: <CheckCircle2 className="w-12 h-12 text-[#FFD43B]" />
+    },
+    {
+      id: 3,
+      title: "Enterprise Grade Security built-in",
+      desc: "Your data is safe with us. We use end-to-end encryption to protect your kitchen metrics.",
+      icon: <ShieldCheck className="w-12 h-12 text-[#8CE99A]" />
+    }
+  ];
+
+  // -- AUTHENTICATION LOGIC --
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    if (!email || !password) return;
+    
+    setIsLoading(true);
+    const success = await login(email, password);
+    setIsLoading(false);
+    
+    if (success) {
+      router.push("/");
+    } else {
+      setErrorMsg("Invalid credentials. Please try again.");
+    }
+  };
+
+  const handleRegisterNext = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    if (!email) return;
+    
+    setIsLoading(true);
+    const success = await sendRegisterOtp(email);
+    setIsLoading(false);
+    
+    if (success) {
+      setViewState("register-step2");
+    } else {
+      setErrorMsg("Failed to send OTP. Try again.");
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) return;
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-input-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    const fullOtp = otp.join("");
+    if (fullOtp.length < 6) {
+      setErrorMsg("Please enter 6-digit OTP.");
+      return;
+    }
+    
+    setIsLoading(true);
+    const success = await register({
+      email,
+      password,
+      name,
+      phone,
+      otp: fullOtp
+    });
+    setIsLoading(false);
+    
+    if (success) {
+      router.push("/");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#0B1727] text-white flex flex-col font-sans overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full bg-[#A5D8FF]/10 blur-[120px] pointer-events-none" />
+
+      {/* RENDER VIEW: ONBOARDING SLIDES */}
+      {viewState === "onboarding" && (
+        <div className="flex-1 flex flex-col pt-12 pb-8 px-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-8">
+            <Image src="/logo.png" alt="Moncradel Kitchen Logo" width={180} height={45} className="h-8 w-auto brightness-0 invert opacity-90 object-contain" />
+            <button onClick={() => setViewState("auth-select")} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
+              Skip
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center mb-8 shadow-2xl backdrop-blur-xl">
+              {slides[currentSlide].icon}
+            </div>
+            
+            <div className="flex gap-2 mb-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentSlide ? 'w-8 bg-[#A5D8FF]' : 'w-2 bg-slate-700'}`} />
+              ))}
+            </div>
+
+            <h1 className="text-3xl font-bold text-white mb-4 leading-tight tracking-tight">
+              {slides[currentSlide].title}
+            </h1>
+            <p className="text-[15px] leading-relaxed text-slate-400">
+              {slides[currentSlide].desc}
+            </p>
+          </div>
+
+          <button
+            onClick={handleNextSlide}
+            className="w-full bg-[#A5D8FF] text-[#0B1727] py-4 rounded-2xl font-bold text-[16px] shadow-lg shadow-[#A5D8FF]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            {currentSlide === 2 ? "Get Started" : "Continue"}
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {/* RENDER VIEW: AUTH SELECTOR */}
+      {viewState === "auth-select" && (
+        <div className="flex-1 flex flex-col justify-center px-6 animate-fade-in-up">
+          <div className="flex justify-center mb-10">
+            <Image src="/logo.png" alt="Moncradel Kitchen Logo" width={220} height={55} className="h-10 w-auto brightness-0 invert object-contain" />
+          </div>
+          
+          <h2 className="text-2xl font-bold text-center mb-2">Welcome to Moncradel</h2>
+          <p className="text-slate-400 text-center mb-10 text-sm">Join the network of premium cloud kitchens.</p>
+          
+          <div className="space-y-4">
+            <button 
+              onClick={() => setViewState("login")}
+              className="w-full bg-[#A5D8FF] text-[#0B1727] py-4 rounded-2xl font-bold text-[16px] shadow-lg shadow-[#A5D8FF]/20 active:scale-[0.98] transition-all"
+            >
+              Sign In
+            </button>
+            <button 
+              onClick={() => setViewState("register-step1")}
+              className="w-full bg-white/10 text-white border border-white/10 py-4 rounded-2xl font-bold text-[16px] active:scale-[0.98] transition-all"
+            >
+              Request Access (Register)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* RENDER VIEW: LOGIN */}
+      {viewState === "login" && (
+        <div className="flex-1 flex flex-col pt-12 pb-8 px-6 animate-fade-in-right">
+          <button onClick={() => setViewState("auth-select")} className="flex items-center gap-2 text-slate-400 mb-8">
+            <ChevronLeft className="w-5 h-5" /> Back
+          </button>
+          
+          <h2 className="text-3xl font-bold mb-2">Sign In</h2>
+          <p className="text-slate-400 mb-8">Enter your kitchen partner credentials.</p>
+
+          <form onSubmit={handleLoginSubmit} className="space-y-5 flex-1">
+            {errorMsg && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl">
+                {errorMsg}
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 ml-1">Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="name@kitchen.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 ml-1">Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-[#A5D8FF] text-[#0B1727] py-4 rounded-2xl font-bold text-[16px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-8 disabled:opacity-70"
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* RENDER VIEW: REGISTER STEP 1 */}
+      {viewState === "register-step1" && (
+        <div className="flex-1 flex flex-col pt-12 pb-8 px-6 animate-fade-in-right">
+          <button onClick={() => setViewState("auth-select")} className="flex items-center gap-2 text-slate-400 mb-8">
+            <ChevronLeft className="w-5 h-5" /> Back
+          </button>
+          
+          <h2 className="text-3xl font-bold mb-2">Create Account</h2>
+          <p className="text-slate-400 mb-8">Enter your work email to receive an OTP.</p>
+
+          <form onSubmit={handleRegisterNext} className="space-y-5 flex-1">
+            {errorMsg && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl">
+                {errorMsg}
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 ml-1">Work Email</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="partner@kitchen.com"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-[#A5D8FF] text-[#0B1727] py-4 rounded-2xl font-bold text-[16px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-8 disabled:opacity-70"
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send OTP"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* RENDER VIEW: REGISTER STEP 2 (OTP & DETAILS) */}
+      {viewState === "register-step2" && (
+        <div className="flex-1 flex flex-col pt-12 pb-8 px-6 animate-fade-in-left overflow-y-auto">
+          <button onClick={() => setViewState("register-step1")} className="flex items-center gap-2 text-slate-400 mb-6 shrink-0">
+            <ChevronLeft className="w-5 h-5" /> Back
+          </button>
+          
+          <h2 className="text-2xl font-bold mb-2">Almost there!</h2>
+          <p className="text-slate-400 mb-8 text-sm">Enter the OTP sent to {email} and complete your profile.</p>
+
+          <form onSubmit={handleRegisterSubmit} className="space-y-5 pb-6">
+            {errorMsg && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300 ml-1">OTP Verification</label>
+              <div className="flex justify-between gap-2">
+                {[0, 1, 2, 3, 4, 5].map((index) => (
+                  <input
+                    key={index}
+                    id={`otp-input-${index}`}
+                    type="text"
+                    maxLength={1}
+                    value={otp[index]}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    className="w-12 h-14 bg-white/5 border border-white/10 rounded-xl text-center text-xl font-bold text-white focus:outline-none focus:border-[#A5D8FF] focus:bg-[#A5D8FF]/10 transition-all"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2">
+              <label className="text-sm font-medium text-slate-300 ml-1">Full Name</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="John Doe"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 ml-1">Phone Number</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Phone className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="9876543210"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-300 ml-1">Set Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-500" />
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#A5D8FF] transition-all"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-[#A5D8FF] text-[#0B1727] py-4 rounded-2xl font-bold text-[16px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-70"
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Complete Registration"}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}

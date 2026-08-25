@@ -1,0 +1,40 @@
+﻿Created At: 2026-08-08T10:01:55Z
+Completed At: 2026-08-08T10:01:55Z
+File Path: `file:///c:/Users/lenovo/Desktop/moncradel/frontend/kitchen-pwa/src/components/MobileOnboardingModal.tsx`
+Total Lines: 332
+Total Bytes: 14151
+Showing lines 145 to 175
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+145: 
+146:         {/* SLIDE 1: Smart Pediatric Recipes */}
+147:         {currentSlide === 0 && (
+148:           <div className="w-full space-y-5 animate-fadeIn relative">
+149:             {/* Theme Background Glowing Artwork */}
+150:             <div className="absolute top-0 -left-12 w-56 h-56 bg-[#A5D8FF]/35 rounded-full blur-3xl pointer-events-none" />
+151:             <div className="absolute bottom-10 -right-16 w-64 h-64 bg-sky-200/40 rounded-full blur-3xl pointer-events-none" />
+152: 
+153:             {/* Stage Container */}
+154:             {renderHeroStage(
+155:               "Master Chef Recipes",
+156:               "Smart Pediatric Recipes",
+157:               "Standardized WHO formulas & automated steam cycle protocols for cloud kitchens.",
+158:               "âœ“ 100% Organic",
+159:               "HACCP Grade A"
+160:             )}
+161: 
+162:             {/* Slide 1 Main Title & Description */}
+163:             <div className="space-y-2 max-w-xs mx-auto text-center pt-1 relative z-20 px-5">
+164:               <span className="text-[11px] font-bold text-[#1E4E70] uppercase tracking-wider bg-[#A5D8FF]/30 px-3.5 py-1 rounded-full border border-[#A5D8FF]/50">
+165:                 Step 1 of 3
+166:               </span>
+167:               <h2 className="text-2xl font-bold text-slate-800 tracking-tight leading-tight pt-1">
+168:                 Smart Recipes, Just For You!
+169:               </h2>
+170:               <p className="text-xs text-slate-500 font-medium leading-relaxed">
+171:                 Personalized pediatric nutrition plans, steam cycle protocols & portion controls for cloud kitchens.
+172:               </p>
+173:             </div>
+174:           </div>
+175:         )}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
