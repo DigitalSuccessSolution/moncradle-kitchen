@@ -123,7 +123,7 @@ export default function LoginPage() {
                 height={50} 
                 className="h-12 w-auto object-contain"
                 priority
-              /> 
+              />     
             </div>
 
             {/* Heading */}
