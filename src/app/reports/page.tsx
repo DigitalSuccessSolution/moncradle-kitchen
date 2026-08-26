@@ -23,6 +23,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import axios from "axios";
 
 export default function ReportsPage() {
@@ -273,43 +274,11 @@ export default function ReportsPage() {
   ];
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-16 font-sans w-full">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-medium text-black tracking-tight mb-1">
-            System Reports
-          </h1>
-          <p className="text-base text-black/80 font-medium hidden md:block">
-            View and analyze comprehensive data across the entire platform.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Calendar className="w-4 h-4 text-black/40 absolute left-3 top-1/2 -translate-y-1/2" />
-            <select 
-              className="appearance-none bg-white border border-slate-200 text-black/80 font-medium text-[14px] py-2 pl-9 pr-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 cursor-pointer w-full sm:w-auto shadow-sm"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            >
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="all">All Time</option>
-            </select>
-            <ChevronDown className="w-4 h-4 text-black/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Dynamic Graph Area */}
-      <div className="bg-white rounded-lg border border-slate-200/80 p-5 shadow-sm transition-all duration-300">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-2">
+    <ProtectedRoute allowedRoles={['kitchen', 'admin', 'superadmin']}>
+      <div className="space-y-6 pb-20 max-w-7xl mx-auto font-sans animate-fade-in-up">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h2 className="text-base font-medium text-black">Sales & Volume Trend</h2>
-            <p className="text-[13px] text-black/60 font-medium">Tracking order volume and revenue generation.</p>
-          </div>
           <div className="flex items-center gap-4 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">
             <span className="flex items-center gap-1.5 text-[12px] font-medium text-black/70">
               <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div> Orders
@@ -453,5 +422,6 @@ export default function ReportsPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

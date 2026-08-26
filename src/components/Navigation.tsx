@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,23 +9,44 @@ import {
   Flame,
   Package,
   Menu,
+  Clock
 } from "lucide-react";
 
 interface NavigationProps {
-  mode: "desktop" | "mobile"; // Keeping the prop signature to avoid breaking parent types, even if unused
+  mode: "desktop" | "mobile";
 }
 
 export default function Navigation({ mode }: NavigationProps) {
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string>("kitchen");
 
-  // Mobile Bottom Navigation Tabs
-  const mobileNavItems = [
+  useEffect(() => {
+    const userStr = localStorage.getItem("moncradel_kitchen_user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserRole(user.role);
+      } catch (e) {}
+    }
+  }, []);
+
+  const adminNavItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutGrid },
     { name: "Orders", href: "/orders", icon: ShoppingBag },
     { name: "Kitchen", href: "/cooking-batches", icon: Flame },
     { name: "Stock", href: "/stock-management", icon: Package },
     { name: "More", href: "/more", icon: Menu },
   ];
+
+  const staffNavItems = [
+    { name: "Attendance", href: "/attendance", icon: Clock },
+    { name: "Orders", href: "/orders", icon: ShoppingBag },
+    { name: "Kitchen", href: "/cooking-batches", icon: Flame },
+    { name: "Stock", href: "/stock-management", icon: Package },
+    { name: "More", href: "/more", icon: Menu },
+  ];
+
+  const mobileNavItems = userRole === "kitchen_staff" ? staffNavItems : adminNavItems;
 
   if (mode === "desktop") {
     return null; // Desktop is now handled by the separate Sidebar component

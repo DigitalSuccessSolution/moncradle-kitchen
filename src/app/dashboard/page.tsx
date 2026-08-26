@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import axios from "axios";
 import OrderStatusChart from "@/components/OrderStatusChart";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -252,6 +253,7 @@ export default function Dashboard() {
   }
 
   return (
+    <ProtectedRoute allowedRoles={['kitchen', 'admin', 'superadmin']}>
     <div className="space-y-8 animate-fade-in-up pb-16 font-sans w-full">
       
       {/* HEADER */}
@@ -522,5 +524,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Users, UserCheck, ShieldCheck, Clock, Plus, Search, Filter, Phone, CheckCircle2, Eye, Edit2, X, Pencil } from "lucide-react";
+import { Users, UserCheck, ShieldCheck, Clock, Plus, Search, Filter, Phone, Mail, CheckCircle2, Eye, EyeOff, Edit2, X, Pencil, Loader2, Trash2 } from "lucide-react";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Link from "next/link";
+import axios from "axios";
 
 export default function StaffPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -13,72 +16,59 @@ export default function StaffPage() {
   const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteStaff = async () => {
+    if (!staffToDelete) return;
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('moncradel_kitchen_token');
+      await axios.delete(`http://192.168.29.250:5000/api/staff/${staffToDelete._id || staffToDelete.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStaffMembers(staffMembers.filter((s: any) => s.id !== (staffToDelete._id || staffToDelete.id)));
+      setStaffToDelete(null);
+    } catch (error: any) {
+      console.error(error);
+      alert(error.response?.data?.message || "Failed to delete staff member");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const token = localStorage.getItem("moncradel_kitchen_token");
+      if (!token) return;
+      
+      const response = await axios.get("http://192.168.29.250:5000/api/staff", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data.success) {
+        // Map backend _id to id for existing frontend logic
+        const formattedStaff = response.data.data.map((s: any) => ({
+          ...s,
+          id: s._id,
+        }));
+        setStaffMembers(formattedStaff);
+      }
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
+    fetchStaff();
   }, []);
 
-  const [staffMembers, setStaffMembers] = useState([
-    {
-      id: "STF-101",
-      name: "Chef Marcus Vance",
-      avatar: "https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&q=80&w=200",
-      role: "Head of Steam Prep",
-      status: "On-Duty",
-      shift: "Morning Shift (06:00 - 14:00)",
-      station: "Steam Kettle Bay #1",
-      phone: "+91 98765-XXXX",
-      certifications: ["HACCP Level 3", "Food Safety SOP"],
-      healthCheckup: "Valid till Dec 2026",
-    },
-    {
-      id: "STF-102",
-      name: "Chef Elena Sharma",
-      avatar: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&q=80&w=200",
-      role: "Senior Nutritionist Chef",
-      status: "On-Duty",
-      shift: "Morning Shift (06:00 - 14:00)",
-      station: "Blending & Portioning Bay",
-      phone: "+91 98765-XXXX",
-      certifications: ["Pediatric Nutritionist", "FDA Compliance"],
-      healthCheckup: "Valid till Nov 2026",
-    },
-    {
-      id: "STF-103",
-      name: "Chef David Kim",
-      avatar: "https://images.unsplash.com/photo-1607631568010-a87245c0daf8?auto=format&fit=crop&q=80&w=200",
-      role: "Puree & Rapid Cooling Specialist",
-      status: "On-Duty",
-      shift: "Morning Shift (06:00 - 14:00)",
-      station: "Blast Chiller Bay #2",
-      phone: "+91 98765-XXXX",
-      certifications: ["Cold Chain Specialist"],
-      healthCheckup: "Valid till Jan 2027",
-    },
-    {
-      id: "STF-104",
-      name: "Chef Sarah Lin",
-      avatar: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&q=80&w=200",
-      role: "Master Executive Chef",
-      status: "On-Duty",
-      shift: "Full Shift Lead",
-      station: "Quality Control & Audit",
-      phone: "+91 98765-XXXX",
-      certifications: ["ISO 22000 Auditor", "FSSAI Lead"],
-      healthCheckup: "Valid till Oct 2026",
-    },
-    {
-      id: "STF-105",
-      name: "Rohan Gupta",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-      role: "Thermal Packaging Lead",
-      status: "On Break",
-      shift: "Evening Shift (14:00 - 22:00)",
-      station: "Eco-Sealing Counter",
-      phone: "+91 98765-XXXX",
-      certifications: ["Thermal Seal Certified"],
-      healthCheckup: "Valid till Sep 2026",
-    },
-  ]);
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
 
   const [newStaff, setNewStaff] = useState({
     name: "",
@@ -87,44 +77,120 @@ export default function StaffPage() {
     role: "Chef",
     shift: "Morning Shift",
     joiningDate: "",
+    station: "",
+    status: "On-Duty",
+    password: "",
     photo: null as any
   });
 
-  const handleAddStaff = (e: React.FormEvent) => {
+  const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStaff.name) return;
-    const added = {
-      id: `STF-${100 + staffMembers.length + 1}`,
-      name: newStaff.name,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-      role: newStaff.role,
-      status: "On-Duty",
-      shift: newStaff.shift,
-      station: "TBD",
-      phone: newStaff.phone || "+91 00000-00000",
-      certifications: [],
-      healthCheckup: "Pending",
-    };
-    setStaffMembers([...staffMembers, added]);
-    setNewStaff({
-      name: "",
-      phone: "",
-      email: "",
-      role: "Chef",
-      shift: "Morning Shift",
-      joiningDate: "",
-      photo: null
-    });
-    setShowAddModal(false);
+    if (!newStaff.name || !newStaff.password || !newStaff.email || !newStaff.phone || !newStaff.joiningDate || !newStaff.role) {
+      setErrorMsg("Please fill all required fields (Name, Phone, Email, Password, Role, Joining Date).");
+      return;
+    }
+    
+    setIsLoading(true);
+    setErrorMsg("");
+    
+    try {
+      const token = localStorage.getItem("moncradel_kitchen_token");
+      
+      const formData = new FormData();
+      formData.append("name", newStaff.name);
+      formData.append("phone", newStaff.phone);
+      if (newStaff.email) formData.append("email", newStaff.email);
+      formData.append("role", newStaff.role);
+      formData.append("shift", newStaff.shift);
+      formData.append("joiningDate", newStaff.joiningDate);
+      if (newStaff.station) formData.append("station", newStaff.station);
+      formData.append("status", newStaff.status);
+      formData.append("password", newStaff.password);
+      
+      if (newStaff.photo) {
+        formData.append("photo", newStaff.photo);
+      }
+      
+      const response = await axios.post("http://192.168.29.250:5000/api/staff", formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data" 
+        }
+      });
+      
+      if (response.data.success) {
+        setNewStaff({
+          name: "",
+          phone: "",
+          email: "",
+          role: "Chef",
+          shift: "Morning Shift",
+          joiningDate: "",
+          station: "",
+          status: "On-Duty",
+          password: "",
+          photo: null
+        });
+        setShowAddModal(false);
+        fetchStaff(); // Refresh list
+      }
+    } catch (error: any) {
+      setErrorMsg(error.response?.data?.message || "Error adding staff");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEditStaff = (e: React.FormEvent) => {
+  const handleEditStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStaffForEdit) return;
-    setStaffMembers(prev => prev.map(staff => 
-      staff.id === selectedStaffForEdit.id ? selectedStaffForEdit : staff
-    ));
-    setSelectedStaffForEdit(null);
+    
+    if (!selectedStaffForEdit.name || !selectedStaffForEdit.email || !selectedStaffForEdit.phone || !selectedStaffForEdit.joiningDate || !selectedStaffForEdit.role) {
+      setErrorMsg("Please fill all required fields (Name, Phone, Email, Role, Joining Date).");
+      return;
+    }
+    
+    setIsLoading(true);
+    setErrorMsg("");
+    
+    try {
+      const token = localStorage.getItem("moncradel_kitchen_token");
+      
+      const formData = new FormData();
+      formData.append("name", selectedStaffForEdit.name);
+      formData.append("phone", selectedStaffForEdit.phone);
+      if (selectedStaffForEdit.email) formData.append("email", selectedStaffForEdit.email);
+      formData.append("role", selectedStaffForEdit.role);
+      formData.append("shift", selectedStaffForEdit.shift);
+      formData.append("joiningDate", selectedStaffForEdit.joiningDate);
+      if (selectedStaffForEdit.station) formData.append("station", selectedStaffForEdit.station);
+      
+      formData.append("status", selectedStaffForEdit.status);
+      
+      if (selectedStaffForEdit.password) {
+        formData.append("password", selectedStaffForEdit.password);
+      }
+      
+      if (selectedStaffForEdit.photo && selectedStaffForEdit.photo instanceof File) {
+        formData.append("photo", selectedStaffForEdit.photo);
+      }
+      
+      const response = await axios.put(`http://192.168.29.250:5000/api/staff/${selectedStaffForEdit.id}`, formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data" 
+        }
+      });
+      
+      if (response.data.success) {
+        setSelectedStaffForEdit(null);
+        fetchStaff();
+      }
+    } catch (error: any) {
+      setErrorMsg(error.response?.data?.message || "Error updating staff");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredStaff = staffMembers.filter((s) => {
@@ -141,22 +207,22 @@ export default function StaffPage() {
   });
 
   return (
+    <ProtectedRoute allowedRoles={['kitchen', 'admin', 'superadmin']}>
     <div className="space-y-6 animate-fade-in-up pb-16 max-w-2xl mx-auto lg:max-w-none lg:mx-0 font-sans">
       
       {/* 1. Header & Controls Row (Matched to Inventory) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-medium text-slate-900 tracking-tight mb-1">
-            Kitchen Staff Management
+          <h1 className="text-xl sm:text-3xl font-medium text-slate-900 tracking-tight mb-1 whitespace-nowrap">
+            Staff Management
           </h1>
           <p className="text-sm text-slate-700 font-medium hidden md:block">
             Manage chefs, station assignments, shift rosters & safety certifications.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search Bar */}
-          <div className="relative flex-1 sm:w-64">
+        <div className="flex flex-col-reverse sm:flex-col gap-3 w-full sm:w-auto sm:items-end">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700" />
             <input
               type="text"
@@ -167,13 +233,22 @@ export default function StaffPage() {
             />
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-brand hover:bg-brand-hover text-white font-medium text-[13px] px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 shrink-0 shadow-sm"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Add Staff</span>
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Link
+               href="/attendance"
+               className="flex-1 sm:flex-none bg-white text-brand border border-brand font-medium text-[13px] px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm hover:bg-brand/5"
+            >
+              <Clock className="w-4 h-4 stroke-[2.5]" />
+              <span className="whitespace-nowrap">Attendance</span>
+            </Link>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex-1 sm:flex-none bg-brand hover:bg-brand-hover text-white font-medium text-[13px] px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span className="whitespace-nowrap">Add Staff</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -239,21 +314,43 @@ export default function StaffPage() {
               </span>
             </div>
 
-            {/* Current Station & Actions (Simplified) */}
-            <div className="pt-2 flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-[12px] text-slate-700 font-medium">Assigned Station</span>
-                <span className="text-[14px] font-medium text-slate-800 truncate">
-                  {s.station}
-                </span>
+            {/* Details & Actions */}
+            <div className="pt-2 flex items-end justify-between">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="text-[12px] font-medium">{s.phone}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span className="text-[12px] font-medium">{s.shift}</span>
+                </div>
               </div>
               
               <div className="flex items-center gap-2">
                 <button onClick={() => setSelectedStaff(s)} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-brand hover:border-brand hover:bg-slate-50 transition-colors cursor-pointer" title="View Details">
                   <Eye className="w-4 h-4" />
                 </button>
-                <button onClick={() => setSelectedStaffForEdit(s)} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-brand hover:border-brand hover:bg-slate-50 transition-colors cursor-pointer" title="Edit Staff">
+                <button 
+                  onClick={() => {
+                    const dateStr = s.joiningDate ? new Date(s.joiningDate).toISOString().split('T')[0] : '';
+                    setSelectedStaffForEdit({
+                      ...s,
+                      role: s.designation || 'Chef',
+                      joiningDate: dateStr
+                    });
+                  }} 
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-brand hover:border-brand hover:bg-slate-50 transition-colors cursor-pointer" 
+                  title="Edit Staff"
+                >
                   <Pencil className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => setStaffToDelete(s)} 
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:text-red-500 hover:border-red-500 hover:bg-red-50 transition-colors cursor-pointer" 
+                  title="Delete Staff"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -278,6 +375,7 @@ export default function StaffPage() {
             </div>
 
             <div className="p-5 overflow-y-auto">
+              {errorMsg && <div className="mb-4 text-red-500 text-sm font-medium">{errorMsg}</div>}
               <form onSubmit={handleAddStaff} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
@@ -286,6 +384,7 @@ export default function StaffPage() {
                   <input
                     type="text"
                     placeholder="e.g. Chef Anita Patel"
+                    minLength={3}
                     value={newStaff.name}
                     onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
                     required
@@ -299,9 +398,14 @@ export default function StaffPage() {
                   </label>
                   <input
                     type="tel"
-                    placeholder="+91 XXXXX-XXXXX"
+                    placeholder="e.g. 9876543210"
+                    pattern="[0-9]{10}"
+                    title="Please enter a valid 10-digit mobile number"
                     value={newStaff.phone}
-                    onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setNewStaff({ ...newStaff, phone: val });
+                    }}
                     required
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   />
@@ -309,24 +413,50 @@ export default function StaffPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Email (Optional)
+                    Email
                   </label>
                   <input
                     type="email"
                     placeholder="example@kitchen.com"
                     value={newStaff.email}
                     onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
+                    required
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Role / Designation
+                    Staff Login Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAddPassword ? "text" : "password"}
+                      placeholder="Min. 6 characters"
+                      minLength={6}
+                      value={newStaff.password}
+                      onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                      required
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-10 text-[14px] focus:outline-none focus:border-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(!showAddPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand transition-colors"
+                    >
+                      {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-medium text-slate-700 block">
+                    Role / Designation <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={newStaff.role}
                     onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                    required
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   >
                     <option value="Head Chef">Head Chef</option>
@@ -340,11 +470,12 @@ export default function StaffPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Shift Assignment
+                    Shift Assignment <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={newStaff.shift}
                     onChange={(e) => setNewStaff({ ...newStaff, shift: e.target.value })}
+                    required
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   >
                     <option value="Morning Shift">Morning Shift</option>
@@ -356,7 +487,7 @@ export default function StaffPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Joining Date
+                    Joining Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -382,9 +513,10 @@ export default function StaffPage() {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full bg-brand text-white font-medium text-[15px] py-3 rounded-lg shadow-sm hover:shadow hover:bg-brand-hover transition-all duration-200 cursor-pointer"
+                    disabled={isLoading}
+                    className="w-full bg-brand text-white font-medium text-[15px] py-3 rounded-lg shadow-sm hover:shadow hover:bg-brand-hover transition-all duration-200 cursor-pointer disabled:opacity-70 flex justify-center items-center gap-2"
                   >
-                    Save Staff
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Staff"}
                   </button>
                 </div>
               </form>
@@ -440,23 +572,38 @@ export default function StaffPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Email (Optional)
+                    Email
                   </label>
                   <input
                     type="email"
                     value={selectedStaffForEdit.email || ""}
                     onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, email: e.target.value })}
+                    required
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
-                    Role / Designation
+                    Reset Password (Optional)
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Leave blank to keep current password"
+                    value={selectedStaffForEdit.password || ""}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, password: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-medium text-slate-700 block">
+                    Role / Designation <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={selectedStaffForEdit.role}
                     onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, role: e.target.value })}
+                    required
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
                   >
                     <option value="Head Chef">Head Chef</option>
@@ -499,6 +646,30 @@ export default function StaffPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-slate-700 block">
+                    Update Password (Optional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? "text" : "password"}
+                      placeholder="Leave blank to keep unchanged"
+                      minLength={6}
+                      value={selectedStaffForEdit.password || ""}
+                      onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, password: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-10 text-[14px] focus:outline-none focus:border-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand transition-colors"
+                    >
+                      {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-medium text-slate-700 block">
                     Photo Upload
                   </label>
                   <input
@@ -509,26 +680,13 @@ export default function StaffPage() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-medium text-slate-700 block">
-                    Current Status
-                  </label>
-                  <select
-                    value={selectedStaffForEdit.status}
-                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, status: e.target.value })}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] focus:outline-none focus:border-brand"
-                  >
-                    <option value="On-Duty">On-Duty</option>
-                    <option value="On Break">On Break</option>
-                  </select>
-                </div>
-
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full bg-brand text-white font-medium text-[15px] py-3 rounded-lg shadow-sm hover:shadow hover:bg-brand-hover transition-all duration-200 cursor-pointer"
+                    disabled={isLoading}
+                    className="w-full bg-brand text-white font-medium text-[15px] py-3 rounded-lg shadow-sm hover:shadow hover:bg-brand-hover transition-all duration-200 cursor-pointer disabled:opacity-70 flex justify-center items-center gap-2"
                   >
-                    Update Staff
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Update Staff"}
                   </button>
                 </div>
               </form>
@@ -538,7 +696,7 @@ export default function StaffPage() {
         document.body
       )}
 
-      {/* 4. View Details Modal (Inventory Style) */}
+      {/* 5. View Details Modal (Staff ID Card Style) */}
       {mounted && selectedStaff && createPortal(
         <div className="fixed inset-0 z-[99999] flex justify-center items-end sm:items-center p-0 sm:p-4 pointer-events-none">
           <div 
@@ -546,113 +704,98 @@ export default function StaffPage() {
             style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
             onClick={() => setSelectedStaff(null)}
           />
-          <div className="relative bg-white w-full max-w-[100vw] sm:max-w-md h-auto max-h-[90vh] overflow-hidden animate-slide-up shadow-2xl border-0 sm:border border-slate-200 pointer-events-auto flex flex-col rounded-t-xl sm:rounded-lg">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="text-[17px] font-medium text-slate-900">Staff Profile</h2>
-              <button onClick={() => setSelectedStaff(null)} className="p-1.5 text-slate-700 hover:text-slate-600 hover:bg-slate-200/50 rounded-full transition-colors cursor-pointer">
+          <div className="relative bg-white w-full max-w-sm rounded-t-xl sm:rounded-xl overflow-hidden animate-slide-up shadow-2xl pointer-events-auto">
+            {/* Header / Cover Area */}
+            <div className="h-24 bg-gradient-to-r from-brand to-brand/80 relative">
+              <button 
+                onClick={() => setSelectedStaff(null)} 
+                className="absolute top-3 right-3 p-1.5 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors cursor-pointer backdrop-blur-sm"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            <div className="p-5 overflow-y-auto space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-100 relative shrink-0 bg-slate-50">
-                  <Image
-                    src={selectedStaff.avatar}
-                    alt={selectedStaff.name}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                </div>
-                <div>
-                  <h3 className="font-medium text-slate-900 text-lg leading-tight">
-                    {selectedStaff.name}
-                  </h3>
-                  <p className="text-[13px] font-medium text-slate-700 mt-0.5">
-                    {selectedStaff.role}
-                  </p>
-                  <span className="text-[12px] text-slate-500 block pt-0.5 font-mono">
-                    ID: {selectedStaff.id}
-                  </span>
-                </div>
+            
+            {/* Avatar Profile */}
+            <div className="px-6 relative pb-6">
+              <div className="w-20 h-20 rounded-full border-4 border-white bg-slate-100 absolute -top-10 left-6 overflow-hidden shadow-sm">
+                <Image
+                  src={selectedStaff.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"}
+                  alt={selectedStaff.name}
+                  fill
+                  className="object-cover"
+                />
               </div>
-
-              <div className="space-y-1">
-                <p className="text-[12px] text-slate-700 font-medium">Current Status</p>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-[12px] font-medium px-2 py-0.5 rounded uppercase tracking-wider ${
-                      selectedStaff.status === "On-Duty"
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        : "bg-amber-100 text-amber-800 border border-amber-200"
-                    }`}
-                  >
-                    {selectedStaff.status}
-                  </span>
+              
+              <div className="pt-12">
+                <h3 className="text-[20px] font-semibold text-slate-900">{selectedStaff.name}</h3>
+                <p className="text-[14px] text-brand font-medium mt-0.5">{selectedStaff.designation || "Kitchen Staff"}</p>
+                
+                <div className="mt-5 space-y-4">
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Phone className="w-4 h-4 text-slate-400" />
+                    <span className="text-[14px]">{selectedStaff.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    <span className="text-[14px]">{selectedStaff.email}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span className="text-[14px]">{selectedStaff.shift}</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {selectedStaff.station && (
-                  <div className="space-y-1">
-                    <p className="text-[12px] text-slate-700 font-medium">Station</p>
-                    <p className="text-[14px] text-slate-900 font-medium">{selectedStaff.station}</p>
+                <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[12px] text-slate-500 font-medium uppercase tracking-wider">Status</span>
+                    <span className="text-[14px] font-medium text-slate-900 mt-0.5">{selectedStaff.status || "On-Duty"}</span>
                   </div>
-                )}
-                <div className="space-y-1">
-                  <p className="text-[12px] text-slate-700 font-medium">Phone</p>
-                  <p className="text-[14px] text-slate-900 font-medium">{selectedStaff.phone || "N/A"}</p>
-                </div>
-                {selectedStaff.email && (
-                  <div className="space-y-1 col-span-2">
-                    <p className="text-[12px] text-slate-700 font-medium">Email</p>
-                    <p className="text-[14px] text-slate-900 font-medium">{selectedStaff.email}</p>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <p className="text-[12px] text-slate-700 font-medium">Shift</p>
-                  <p className="text-[14px] text-slate-900 font-medium">{selectedStaff.shift}</p>
-                </div>
-                {selectedStaff.joiningDate && (
-                  <div className="space-y-1">
-                    <p className="text-[12px] text-slate-700 font-medium">Joining Date</p>
-                    <p className="text-[14px] text-slate-900 font-medium">{selectedStaff.joiningDate}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-[13px] text-slate-900 font-medium flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-brand" /> Certifications & Health
-                </p>
-                <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-200/60">
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedStaff.certifications.map((c: string, idx: number) => (
-                      <span
-                        key={idx}
-                        className="text-[11px] font-medium text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="pt-2 mt-2 border-t border-slate-200/60 flex items-center justify-between text-[12px]">
-                    <span className="text-slate-700 font-medium">Health Checkup</span>
-                    <span className="font-medium text-emerald-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> {selectedStaff.healthCheckup}
+                  <div className="flex flex-col text-right">
+                    <span className="text-[12px] text-slate-500 font-medium uppercase tracking-wider">Joined</span>
+                    <span className="text-[14px] font-medium text-slate-900 mt-0.5">
+                      {selectedStaff.joiningDate ? new Date(selectedStaff.joiningDate).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/50">
-              <button
-                onClick={() => setSelectedStaff(null)}
-                className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-[14px] py-2.5 rounded-lg cursor-pointer transition-colors shadow-sm"
+      {/* 6. Delete Confirmation Modal */}
+      {mounted && staffToDelete && createPortal(
+        <div className="fixed inset-0 z-[99999] flex justify-center items-center p-4 pointer-events-none">
+          <div 
+            className="fixed inset-0 bg-[#0B1727]/70 pointer-events-auto transition-opacity"
+            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+            onClick={() => setStaffToDelete(null)}
+          />
+          <div className="relative bg-white w-full max-w-sm rounded-xl overflow-hidden animate-zoom-in shadow-2xl pointer-events-auto p-6 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-500 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Staff Member?</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Are you sure you want to remove <strong>{staffToDelete.name}</strong> from your kitchen? They will no longer be able to log in. This action cannot be undone.
+            </p>
+            <div className="flex items-center gap-3">
+              <button 
+                type="button"
+                onClick={() => setStaffToDelete(null)}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+                disabled={isDeleting}
               >
-                Close Details
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleDeleteStaff}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
               </button>
             </div>
           </div>
@@ -660,5 +803,6 @@ export default function StaffPage() {
         document.body
       )}
     </div>
+    </ProtectedRoute>
   );
 }

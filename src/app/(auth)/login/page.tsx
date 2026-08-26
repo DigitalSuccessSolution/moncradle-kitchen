@@ -57,7 +57,7 @@ export default function LoginPage() {
       const data = await res.json();
       
       if (data.success && data.token) {
-        if (!['kitchen', 'admin', 'superadmin'].includes(data.role)) {
+        if (!['kitchen', 'admin', 'superadmin', 'kitchen_staff'].includes(data.role)) {
           setErrorMsg("Access Denied: You do not have Kitchen Partner access.");
           setIsLoading(false);
           return;
@@ -76,7 +76,11 @@ export default function LoginPage() {
         // Set cookie for middleware
         document.cookie = `moncradel_kitchen_token=${data.token}; path=/; max-age=86400; SameSite=Strict`;
         
-        window.location.href = "/dashboard";
+        if (data.role === 'kitchen_staff') {
+          window.location.href = "/attendance";
+        } else {
+          window.location.href = "/dashboard";
+        }
       } else {
         setErrorMsg(data.message || "Invalid credentials.");
       }

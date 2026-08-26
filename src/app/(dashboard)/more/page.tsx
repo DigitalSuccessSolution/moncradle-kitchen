@@ -44,7 +44,7 @@ export default function MoreMenuPage() {
           const user = res.data.user || {};
           setProfileData({
             name: user.name || "Kitchen Admin",
-            kitchen: profile.kitchenName || "Moncradel Kitchen",
+            kitchen: user.role === 'kitchen_staff' ? (profile.designation || "Staff") : (profile.kitchenName || "Moncradel Kitchen"),
             email: user.email || "",
             phone: user.phone || "",
             avatar: profile.avatar || user.avatar || null
@@ -69,15 +69,33 @@ export default function MoreMenuPage() {
     window.location.href = "/login";
   };
 
+  const [userRole, setUserRole] = useState<string>("kitchen");
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("moncradel_kitchen_user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserRole(user.role);
+      } catch (e) {}
+    }
+  }, []);
+
   const menuItems = [
-    { name: "My Profile", href: "/profile", icon: User, color: "text-blue-600", bg: "bg-blue-50" },
+    { name: "My Profile", href: "/profile", icon: User, color: "text-blue-600", bg: "bg-blue-50", hideForStaff: true },
     { name: "Notifications", href: "/notifications", icon: Bell, color: "text-amber-600", bg: "bg-amber-50" },
     { name: "Meals Catalog", href: "/meals", icon: BookOpen, color: "text-brand", bg: "bg-brand/10" },
-    // { name: "Staff Management", href: "/staff-management", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
     { name: "Hygiene & Safety", href: "/hygiene", icon: ShieldCheck, color: "text-teal-600", bg: "bg-teal-50" },
-    { name: "Reports & Analytics", href: "/reports", icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-50" },
+    { name: "Reports & Analytics", href: "/reports", icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-50", hideForStaff: true },
     { name: "Help & Support", href: "/support", icon: LifeBuoy, color: "text-cyan-600", bg: "bg-cyan-50" },
   ];
+
+  const filteredMenuItems = menuItems.filter(item => {
+    if (userRole === "kitchen_staff" && item.hideForStaff) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="px-4 pt-4 pb-8 min-h-[100dvh] font-sans block md:hidden bg-white">
@@ -124,7 +142,7 @@ export default function MoreMenuPage() {
 
       <div className="mt-4">
         <div className="flex flex-col">
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link

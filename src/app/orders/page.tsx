@@ -17,6 +17,7 @@ export interface KitchenOrder {
   specialInstructions?: string;
   totalAmount: number;
   cancellationReason?: string;
+  packagingProofImageUrl?: string;
   createdAt: string;
 }
 
@@ -27,6 +28,11 @@ export default function IncomingOrdersPage() {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [orderForProof, setOrderForProof] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
 
@@ -71,7 +77,8 @@ export default function IncomingOrdersPage() {
           },
           specialInstructions: o.specialInstructions || "",
           totalAmount: o.totalAmount || 0,
-          cancellationReason: o.cancellationReason || "",
+          cancellationReason: o.cancellationReason || undefined,
+          packagingProofImageUrl: o.packagingProofImageUrl || undefined,
           createdAt: formattedTime
         };
       });
@@ -95,7 +102,7 @@ export default function IncomingOrdersPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const updateOrderStatus = async (orderId: string, newStatus: string, cancelReason?: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: string, cancelReason?: string, proofFile?: File | null) => {
     // Check kitchen open status if they are accepting/preparing an order
     if (newStatus === "preparing" || newStatus === "ready") {
       try {
@@ -128,21 +135,30 @@ export default function IncomingOrdersPage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
       const token = localStorage.getItem("moncradel_kitchen_token") || ""; 
       
-      const payload: any = { status: newStatus };
-      if (cancelReason) {
-         payload.cancellationReason = cancelReason;
+      let dataPayload: any;
+      let headers: any = { Authorization: `Bearer ${token}` };
+
+      if (proofFile) {
+        dataPayload = new FormData();
+        dataPayload.append('status', newStatus);
+        if (cancelReason) dataPayload.append('cancellationReason', cancelReason);
+        dataPayload.append('proof', proofFile);
+        headers['Content-Type'] = 'multipart/form-data';
+      } else {
+        dataPayload = { status: newStatus };
+        if (cancelReason) {
+           dataPayload.cancellationReason = cancelReason;
+        }
       }
 
-      await axios.patch(`${apiUrl}/orders/${orderId}/status`, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await axios.patch(`${apiUrl}/orders/${orderId}/status`, dataPayload, {
+        headers
       });
       
       // Update local state immediately
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, cancellationReason: cancelReason } : o));
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus, cancellationReason: cancelReason, packagingProofImageUrl: response.data.data?.packagingProofImageUrl || o.packagingProofImageUrl } : o));
       if (selectedOrder && selectedOrder.id === orderId) {
-         setSelectedOrder({ ...selectedOrder, status: newStatus, cancellationReason: cancelReason });
+         setSelectedOrder({ ...selectedOrder, status: newStatus, cancellationReason: cancelReason, packagingProofImageUrl: response.data.data?.packagingProofImageUrl || selectedOrder.packagingProofImageUrl });
       }
     } catch (err: any) {
       console.error("Error updating status:", err);
@@ -536,12 +552,33 @@ export default function IncomingOrdersPage() {
               </div>
 
               {/* Special Instructions */}
-              {selectedOrder.specialInstructions && (
-                <div className="bg-rose-50/50 border border-rose-100/60 p-4 rounded-xl flex items-start gap-3">
-                  <span className="text-rose-600 text-lg leading-none mt-0.5">⚠</span>
-                  <div className="flex flex-col">
-                    <span className="text-[12px] font-semibold text-rose-800 uppercase tracking-wider mb-1">Special Instructions</span>
-                    <span className="text-[15px] font-medium text-rose-700 leading-snug">{selectedOrder.specialInstructions}</span>
+              <div className={`p-4 rounded-xl flex items-start gap-3 border ${selectedOrder.specialInstructions ? 'bg-amber-50/50 border-amber-200/60' : 'bg-gray-50/50 border-gray-100'}`}>
+                {selectedOrder.specialInstructions ? (
+                  <span className="text-amber-600 text-lg leading-none mt-0.5">📝</span>
+                ) : (
+                  <Info className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
+                )}
+                <div className="flex flex-col w-full">
+                  <span className={`text-[12px] font-semibold uppercase tracking-wider mb-1 ${selectedOrder.specialInstructions ? 'text-amber-800' : 'text-gray-500'}`}>
+                    Parent Note / Instructions
+                  </span>
+                  {selectedOrder.specialInstructions ? (
+                    <span className="text-[15px] font-medium text-amber-900 leading-snug">{selectedOrder.specialInstructions}</span>
+                  ) : (
+                    <span className="text-[14px] font-medium text-gray-400 italic">No special instructions provided by parent.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Packaging Proof */}
+              {selectedOrder.packagingProofImageUrl && (
+                <div className="pt-2">
+                  <span className="text-[12px] font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Packaging Proof</span>
+                  <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200 shadow-sm cursor-pointer" onClick={() => window.open(selectedOrder.packagingProofImageUrl, '_blank')}>
+                    <img src={selectedOrder.packagingProofImageUrl} alt="Packaging Proof" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors">
+                       <Eye className="w-8 h-8 text-white opacity-0 hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                 </div>
               )}
@@ -585,7 +622,12 @@ export default function IncomingOrdersPage() {
                     <button onClick={() => handleRejectOrder(selectedOrder.id, true)} className="flex-1 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 py-3 rounded-lg text-[15px] font-medium transition-colors">
                       Cancel Order
                     </button>
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'ready')} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg text-[15px] font-medium transition-colors">
+                    <button onClick={() => {
+                        setOrderForProof(selectedOrder.id);
+                        setShowProofModal(true);
+                        setProofFile(null);
+                        setProofPreviewUrl(null);
+                    }} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg text-[15px] font-medium transition-colors">
                       Mark as Ready
                     </button>
                   </>
@@ -600,6 +642,100 @@ export default function IncomingOrdersPage() {
             </div>
           </div>
         </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Proof of Packaging Modal */}
+      {mounted && showProofModal && orderForProof && createPortal(
+        <div className="fixed inset-0 z-[999999] flex justify-center items-end sm:items-center p-0 sm:p-4 pointer-events-none">
+          <div 
+            className="fixed inset-0 bg-[#0B1727]/70 pointer-events-auto transition-opacity"
+            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+            onClick={() => !isUploading && setShowProofModal(false)}
+          />
+          <div className="relative bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden animate-slide-up shadow-2xl pointer-events-auto flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-semibold text-gray-900">Upload Packaging Photo</h3>
+              <button onClick={() => !isUploading && setShowProofModal(false)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto">
+              <p className="text-[14px] text-gray-600 mb-4">
+                Please take a clear photo of the packaged meal. This ensures quality and helps resolve any delivery disputes.
+              </p>
+
+              {!proofPreviewUrl ? (
+                <div className="border-2 border-dashed border-brand/30 rounded-xl bg-brand/5 p-6 flex flex-col items-center justify-center gap-3 relative">
+                  <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center text-brand">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-[14px] font-medium text-brand text-center">Tap to Open Camera</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setProofFile(file);
+                        setProofPreviewUrl(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-200">
+                    <img src={proofPreviewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    <button 
+                      onClick={() => {
+                        setProofFile(null);
+                        setProofPreviewUrl(null);
+                      }}
+                      className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-full backdrop-blur-sm transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-6 mt-2">
+                <button 
+                  disabled={isUploading || !proofFile}
+                  onClick={async () => {
+                    if (!proofFile || !orderForProof) return;
+                    setIsUploading(true);
+                    await updateOrderStatus(orderForProof, 'ready', undefined, proofFile);
+                    setIsUploading(false);
+                    setShowProofModal(false);
+                    setProofFile(null);
+                    setProofPreviewUrl(null);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-xl text-[15px] font-medium transition-colors shadow-sm flex items-center justify-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Uploading & Updating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>Submit & Mark Ready</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>,
         document.body
       )}

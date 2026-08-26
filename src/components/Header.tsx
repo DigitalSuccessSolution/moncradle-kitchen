@@ -11,7 +11,7 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const [profileData, setProfileData] = useState<{name: string, avatar: string | null}>({ name: "", avatar: null });
+  const [profileData, setProfileData] = useState<{name: string, avatar: string | null, role: string, designation?: string}>({ name: "", avatar: null, role: "kitchen" });
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -91,7 +91,9 @@ export default function Header() {
           const user = res.data.user || {};
           setProfileData({
             name: profile.ownerName || profile.kitchenName || user.name || "",
-            avatar: profile.avatar || user.avatar || null
+            avatar: profile.avatar || user.avatar || null,
+            role: user.role || "kitchen",
+            designation: profile.designation || user.designation || ""
           });
         }
       } catch (err) {
@@ -247,7 +249,9 @@ export default function Header() {
               {profileData.name && (
                 <div className="hidden sm:flex flex-col items-start">
                   <span className="text-[13px] font-bold text-slate-900 leading-tight">{profileData.name}</span>
-                  <span className="text-[11px] font-medium text-slate-500">Kitchen Admin</span>
+                  <span className="text-[11px] font-medium text-slate-500 capitalize">
+                    {profileData.role === 'kitchen_staff' ? (profileData.designation || '') : 'Kitchen Admin'}
+                  </span>
                 </div>
               )}
             </div>
@@ -255,14 +259,18 @@ export default function Header() {
             {/* Hover Dropdown */}
             <div className="absolute right-0 top-full mt-0 w-48 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
               <div className="p-2 space-y-1">
-                <Link 
-                  href="/profile" 
-                  className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:text-brand hover:bg-brand/5 rounded-lg transition-colors"
-                >
-                  <User className="w-4 h-4" />
-                  View Profile
-                </Link>
-                <div className="h-px bg-slate-100 my-1"></div>
+                {profileData.role !== 'kitchen_staff' && (
+                  <>
+                    <Link 
+                      href="/profile" 
+                      className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-slate-700 hover:text-brand hover:bg-brand/5 rounded-lg transition-colors"
+                    >
+                      <User className="w-4 h-4" />
+                      View Profile
+                    </Link>
+                    <div className="h-px bg-slate-100 my-1"></div>
+                  </>
+                )}
                 <button 
                   onClick={() => {
                     localStorage.removeItem("moncradel_kitchen_auth");

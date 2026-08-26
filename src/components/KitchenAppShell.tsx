@@ -120,7 +120,20 @@ function KitchenAppInner({ children }: { children: React.ReactNode }) {
   }
 
   // Determine if we should show the profile incomplete overlay
-  const showProfileGate = !isProfileComplete && !isProfileChecking && !isProfileRoute;
+  let isStaff = false;
+  if (typeof window !== 'undefined') {
+    const userStr = localStorage.getItem("moncradel_kitchen_user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.role === 'kitchen_staff') {
+          isStaff = true;
+        }
+      } catch(e) {}
+    }
+  }
+  
+  const showProfileGate = !isProfileComplete && !isProfileChecking && !isProfileRoute && !isStaff;
 
   return (
     <>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -23,28 +23,49 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  LifeBuoy
+  LifeBuoy,
+  Clock
 } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState<string>("kitchen");
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("moncradel_kitchen_user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserRole(user.role);
+      } catch (e) {}
+    }
+  }, []);
 
   const navItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutGrid },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutGrid, hideForStaff: true },
     { name: "Orders", href: "/orders", icon: ShoppingBag },
     { name: "Cooking Batches", href: "/cooking-batches", icon: Flame },
+    { name: "My Attendance", href: "/attendance", icon: Clock, showOnlyForStaff: true },
     { name: "Stock Management", href: "/stock-management", icon: Package },
     { name: "Meals", href: "/meals", icon: BookOpen },
     { name: "Notifications", href: "/notifications", icon: Bell },
     { name: "Hygiene & Safety", href: "/hygiene", icon: ShieldCheck },
-    { name: "Staff Management", href: "/staff-management", icon: Users },
-    { name: "Reports", href: "/reports", icon: BarChart3 },
+    { name: "Staff Management", href: "/staff-management", icon: Users, hideForStaff: true },
+    { name: "Reports", href: "/reports", icon: BarChart3, hideForStaff: true },
     { name: "Help & Support", href: "/support", icon: LifeBuoy },
-    { name: "Profile", href: "/profile", icon: User },
+    { name: "Profile", href: "/profile", icon: User, hideForStaff: true },
     { name: "Terms of Service", href: "/terms", icon: BookOpen },
     { name: "Privacy Policy", href: "/privacy", icon: ShieldCheck },
   ];
+
+  const filteredNavItems = navItems.filter(item => {
+    if (userRole === "kitchen_staff") {
+      return !item.hideForStaff;
+    } else {
+      return !item.showOnlyForStaff;
+    }
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("moncradel_kitchen_auth");
@@ -83,7 +104,7 @@ export default function Sidebar() {
       {/* ─── Scrollable Nav Links ─── */}
       <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 pt-4 pb-3 overflow-x-hidden">
         <div className="space-y-1">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (

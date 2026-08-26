@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Camera, Calendar, CheckSquare, Plus, Trash2, X, Loader2, Pencil } from "lucide-react";
+import { Camera, Calendar, CheckSquare, Plus, Trash2, X, Loader2, Pencil, Eye } from "lucide-react";
 import Image from "next/image";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -13,6 +13,7 @@ export interface HygieneTask {
   status: "pending" | "completed";
   date: string;
   photoUrl: string;
+  completedBy?: string;
 }
 
 export default function HygienePage() {
@@ -28,6 +29,8 @@ export default function HygienePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [editTaskName, setEditTaskName] = useState("");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
@@ -58,6 +61,19 @@ export default function HygienePage() {
     if (!taskToUpdate) return;
     
     const newStatus = taskToUpdate.status === "completed" ? "pending" : "completed";
+    
+    if (newStatus === "completed" && !taskToUpdate.photoUrl) {
+      Swal.fire({
+        title: 'Photo Required',
+        text: 'Please upload a photo before completing this task.',
+        icon: 'warning',
+        confirmButtonColor: '#059669',
+        customClass: {
+          popup: 'rounded-2xl',
+        }
+      });
+      return;
+    }
     
     // Optimistic UI update
     setTasks(tasks.map(t => t._id === id ? { ...t, status: newStatus } : t));
@@ -181,6 +197,7 @@ export default function HygienePage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && activeUploadId) {
+      setIsUploading(true);
       const formData = new FormData();
       formData.append("photo", file);
       
@@ -201,14 +218,15 @@ export default function HygienePage() {
       } catch (err) {
         console.error("Error uploading photo:", err);
         alert("Failed to upload photo.");
+      } finally {
+        setIsUploading(false);
+        setActiveUploadId(null);
       }
     }
-    
     // reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-    setActiveUploadId(null);
   };
 
   const removePhoto = async (taskId: string) => {
@@ -263,6 +281,7 @@ export default function HygienePage() {
         onChange={handleFileChange} 
         className="hidden" 
         accept="image/*" 
+        capture="environment"
       />
 
       {/* 2. Items List */}
@@ -313,14 +332,27 @@ export default function HygienePage() {
               className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col"
             >
               {/* Photo Area - Takes up upper half */}
-              {task.photoUrl ? (
-                <div className="w-full h-44 relative bg-slate-100 group/photo overflow-hidden">
+              {isUploading && activeUploadId === task._id ? (
+                <div className="w-full h-44 bg-slate-100 flex flex-col items-center justify-center border-b border-slate-100">
+                  <Loader2 className="w-8 h-8 animate-spin text-brand mb-3" />
+                  <span className="text-[13px] font-semibold text-slate-600 animate-pulse tracking-wide">Uploading Photo...</span>
+                </div>
+              ) : task.photoUrl ? (
+                <div 
+                  className="w-full h-44 relative bg-slate-100 group/photo overflow-hidden cursor-pointer"
+                  onClick={() => setPreviewImage(task.photoUrl)}
+                >
                   <Image 
                     src={task.photoUrl} 
                     alt={task.taskName} 
                     fill 
                     className="object-cover transition-transform duration-700 group-hover/photo:scale-105"
                   />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-2">
+                    <div className="bg-white/20 backdrop-blur-md p-3 rounded-full text-white transform scale-90 group-hover/photo:scale-100 transition-transform">
+                      <Eye className="w-6 h-6" />
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <button 
@@ -360,6 +392,9 @@ export default function HygienePage() {
                      }`}>
                        {task.status === "completed" ? "Completed" : "Pending"}
                      </span>
+                     {task.completedBy && (
+                       <span className="ml-2 text-[10px] text-slate-500 font-medium capitalize bg-slate-100 px-2 py-0.5 rounded-full">by {task.completedBy}</span>
+                     )}
                      
                      <div className="flex items-center gap-1">
                        {task.status !== "completed" && (
@@ -523,12 +558,28 @@ export default function HygienePage() {
                           <Image src={tasks.find(t => t._id === editTaskId)!.photoUrl} alt="Task Photo" fill className="object-cover" />
                         </div>
                         <div className="flex flex-col items-start gap-1">
+                          {tasks.find(t => t._id === editTaskId)?.status === 'completed' ? (
+                            <>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                Completed
+                              </span>
+                              {tasks.find(t => t._id === editTaskId)?.completedBy && (
+                                <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full capitalize">by {tasks.find(t => t._id === editTaskId)?.completedBy}</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 uppercase tracking-wide">
+                              Pending
+                            </span>
+                          )}
                           <button 
                             type="button" 
+                            disabled={isUploading}
                             onClick={() => openFilePicker(editTaskId!)} 
-                            className="text-[13px] text-brand hover:bg-brand/10 px-3 py-1.5 rounded-lg font-medium transition-colors border border-brand/30"
+                            className="text-[12px] text-brand hover:bg-brand/10 px-3 py-1.5 rounded-lg font-medium transition-colors border border-brand/30 mt-2 disabled:opacity-50 flex items-center gap-2"
                           >
-                            Change Photo
+                            {isUploading ? <><Loader2 className="w-3 h-3 animate-spin"/> Uploading...</> : 'Change Photo'}
                           </button>
                         </div>
                       </>
@@ -554,6 +605,31 @@ export default function HygienePage() {
                 </div>
               </form>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Image Preview Modal */}
+      {mounted && previewImage && createPortal(
+        <div className="fixed inset-0 z-[99999] flex justify-center items-center p-4">
+          <div 
+            className="absolute inset-0 bg-[#0B1727]/70 cursor-pointer backdrop-blur-[2px]"
+            onClick={() => setPreviewImage(null)}
+          />
+          <div className="relative bg-white p-2 rounded-2xl shadow-2xl max-w-2xl w-full pointer-events-auto animate-slide-up">
+             <div className="flex justify-between items-center px-4 py-2 mb-2">
+                <span className="text-[15px] font-semibold text-gray-800">Photo Proof</span>
+                <button
+                  onClick={() => setPreviewImage(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+             </div>
+             <div className="relative w-full h-[60vh] sm:h-[70vh] rounded-xl overflow-hidden bg-[#0B1727] border border-slate-200">
+               <Image src={previewImage} alt="Preview" fill className="object-cover" />
+             </div>
           </div>
         </div>,
         document.body
