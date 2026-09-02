@@ -11,7 +11,9 @@ export interface KitchenOrder {
   id: string;
   parentName: string;
   babyName?: string;
-  items: { name: string; quantity: number }[];
+  babyAgeInMonths?: number;
+  babyAllergies?: string[];
+  items: { name: string; quantity: number; category?: string; timeSlot?: string }[];
   status: string;
   deliveryAddress: { street: string; city: string; zipCode: string; phone: string };
   specialInstructions?: string;
@@ -19,6 +21,7 @@ export interface KitchenOrder {
   cancellationReason?: string;
   packagingProofImageUrl?: string;
   createdAt: string;
+  isSubscription?: boolean;
 }
 
 export default function IncomingOrdersPage() {
@@ -54,19 +57,32 @@ export default function IncomingOrdersPage() {
         if (o.parentId && o.parentId.name) parentName = o.parentId.name;
         
         let babyName = undefined;
-        if (o.babyId && o.babyId.name) babyName = o.babyId.name;
+        let babyAgeInMonths = undefined;
+        let babyAllergies: string[] = [];
+        if (o.babyId) {
+          babyName = o.babyId.name;
+          babyAgeInMonths = o.babyId.ageInMonths;
+          babyAllergies = o.babyId.allergies || [];
+        }
         
         const mappedItems = (o.items || []).map((item: any) => {
            const name = item.mealId?.name || item.productId?.name || "Unknown Item";
-           return { name, quantity: item.quantity || 1 };
+           const category = item.mealId?.category || "";
+           const timeSlot = item.timeSlot || "";
+           return { name, quantity: item.quantity || 1, category, timeSlot };
         });
 
         const formattedTime = new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const itemInstructions = (o.items || []).map((i: any) => i.specialInstructions).filter(Boolean).join(' | ');
+        const combinedInstructions = [o.specialInstructions, itemInstructions].filter(Boolean).join(' | ');
 
         return {
           id: o._id,
           parentName,
           babyName,
+          babyAgeInMonths,
+          babyAllergies,
           items: mappedItems,
           status: o.status,
           deliveryAddress: { 
@@ -75,11 +91,12 @@ export default function IncomingOrdersPage() {
             zipCode: o.deliveryAddress?.zipCode || "", 
             phone: o.deliveryAddress?.phone || o.parentId?.phone || ""
           },
-          specialInstructions: o.specialInstructions || "",
+          specialInstructions: combinedInstructions || "",
           totalAmount: o.totalAmount || 0,
           cancellationReason: o.cancellationReason || undefined,
           packagingProofImageUrl: o.packagingProofImageUrl || undefined,
-          createdAt: formattedTime
+          createdAt: formattedTime,
+          isSubscription: !!o.mealSubscriptionId
         };
       });
 
@@ -351,7 +368,7 @@ export default function IncomingOrdersPage() {
                   {/* Meal */}
                   <div className="col-span-3 min-w-0 pr-2">
                     <span className="text-[14px] text-black/70 font-medium truncate block">
-                      {ord.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                      {ord.items.map(i => `${i.quantity}x ${i.name} ${i.category ? `(${i.category})` : ''} ${i.timeSlot ? `[${i.timeSlot}]` : ''}`).join(', ')}
                     </span>
                   </div>
 
@@ -420,19 +437,32 @@ export default function IncomingOrdersPage() {
                   {/* Card Header */}
                   <div className="px-4 py-3 flex items-center justify-between bg-slate-50/50">
                     <span className="text-[15px] font-medium text-brand">#{ord.id.slice(-8).toUpperCase()}</span>
+                    {ord.isSubscription && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">SUB</span>}
                   </div>
                   {/* Card Body */}
                   <div className="p-4 flex flex-col gap-4">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex flex-col">
                         <span className="text-[15px] font-medium text-black">{ord.parentName}</span>
-                        {ord.babyName && <span className="text-[13px] text-black/60 font-medium">Baby {ord.babyName}</span>}
+                        {ord.babyName && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] text-black/60 font-medium">Baby {ord.babyName}</span>
+                            {ord.babyAllergies && ord.babyAllergies.length > 0 && (
+                               <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-1.5 py-0.5 rounded-sm">ALLERGY</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col text-right">
                         <span className="text-[14px] font-medium text-black">
-                           {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
+                           {ord.items?.length || 0} {(ord.items?.length || 0) === 1 ? 'Item' : 'Items'}
                         </span>
-                        <span className="text-[13px] text-black/60 font-medium">{ord.items[0].name.split('(')[0].trim()}</span>
+                        {ord.items && ord.items.length > 0 && (
+                          <span className="text-[13px] text-black/60 font-medium flex flex-col items-end">
+                            <span>{ord.items[0].name.split('(')[0].trim()} {ord.items[0].category ? `(${ord.items[0].category})` : ''}</span>
+                            {ord.items[0].timeSlot && <span className="text-[11px] text-brand/80">{ord.items[0].timeSlot}</span>}
+                          </span>
+                        )}
                       </div>
                     </div>
                     
@@ -503,6 +533,7 @@ export default function IncomingOrdersPage() {
             <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 sticky top-0 z-20">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-medium text-brand">{selectedOrder.id.toUpperCase()}</h2>
+                {selectedOrder.isSubscription && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold uppercase tracking-wide">SUBSCRIPTION</span>}
               </div>
               <button 
                 onClick={() => setSelectedOrder(null)}
@@ -520,7 +551,16 @@ export default function IncomingOrdersPage() {
                 <div className="flex flex-col">
                   <p className="text-[12px] text-gray-500 font-semibold uppercase tracking-wider mb-1">Customer / Parent</p>
                   <p className="text-[17px] font-semibold text-gray-900">{selectedOrder.parentName}</p>
-                  {selectedOrder.babyName && <p className="text-[14px] text-gray-600 mt-0.5">Baby {selectedOrder.babyName}</p>}
+                  {selectedOrder.babyName && (
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-[14px] font-medium text-gray-800">Baby {selectedOrder.babyName} {selectedOrder.babyAgeInMonths ? `(${selectedOrder.babyAgeInMonths} mos)` : ''}</p>
+                      {selectedOrder.babyAllergies && selectedOrder.babyAllergies.length > 0 && (
+                        <p className="text-[13px] text-rose-600 font-medium flex items-center gap-1">
+                          ⚠ Allergies: {selectedOrder.babyAllergies.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col sm:text-right">
                   <p className="text-[12px] text-gray-500 font-semibold uppercase tracking-wider mb-1">Order Details</p>
@@ -535,8 +575,14 @@ export default function IncomingOrdersPage() {
                 <div className="flex flex-col gap-2.5">
                   {selectedOrder.items.map((item, idx) => (
                      <div key={idx} className="flex justify-between items-start text-[15px] font-medium text-gray-900">
-                       <span className="pr-4">{item.name}</span>
-                       <span className="text-gray-500 whitespace-nowrap bg-gray-50 px-2 py-0.5 rounded-md">x{item.quantity}</span>
+                       <div className="flex flex-col pr-4">
+                         <span>{item.name}</span>
+                         <div className="flex items-center gap-2 mt-0.5">
+                           {item.category && <span className="text-[12px] text-gray-500 capitalize font-medium">{item.category}</span>}
+                           {item.timeSlot && <span className="text-[11px] text-brand bg-brand/10 px-1.5 py-0.5 rounded capitalize font-medium flex items-center gap-1"><Clock className="w-3 h-3"/> {item.timeSlot}</span>}
+                         </div>
+                       </div>
+                       <span className="text-gray-500 whitespace-nowrap bg-gray-50 px-2 py-0.5 rounded-md mt-0.5">x{item.quantity}</span>
                      </div>
                   ))}
                 </div>

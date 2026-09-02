@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  ChevronLeft, Search, MessageSquareText, Mail, Phone, ChevronDown, ChevronUp, 
+import {
+  ChevronLeft, Search, MessageSquareText, Mail, Phone, ChevronDown, ChevronUp,
   LifeBuoy, FileText, Plus, X, Send
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -56,18 +56,43 @@ export const createSupportTicket = async (data: Partial<SupportTicket>) => {
   return response.data.data;
 };
 
-const faqs = [
-  { question: "How do I update my kitchen menu or meals?", answer: "Go to the Meals section from the sidebar or More menu. You can add, edit, or remove items from your catalog." },
-  { question: "What should I do if an order ingredient is unavailable?", answer: "Update the stock in Stock Management immediately and contact support. We will notify the customer and suggest alternatives." },
-  { question: "How are kitchen payouts calculated?", answer: "Payouts are calculated based on completed orders minus platform commission. Check the Reports section for detailed earnings breakdown." },
-  { question: "How do I handle a hygiene inspection?", answer: "Keep your Hygiene & Safety section updated with valid certificates. Ensure your kitchen photos and FSSAI license are always current." },
-  { question: "What if I receive an order I cannot fulfill?", answer: "You can reject the order within 2 minutes of receiving it. After that, contact support immediately for assistance." }
-];
+export interface Faq {
+  _id: string;
+  question: string;
+  answer: string;
+  category: string;
+  isActive: boolean;
+}
+
+export const getKitchenFaqs = async (): Promise<Faq[]> => {
+  const { apiUrl, token } = getApiConfig();
+  try {
+    const response = await axios.get(`${apiUrl}/faqs?targetApp=kitchen`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (response.data.success && Array.isArray(response.data.data)) {
+      return response.data.data.filter((f: Faq) => f.isActive);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+};
+
 
 export default function SupportPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [faqs, setFaqs] = useState<Faq[]>([]);
+  const [faqsLoading, setFaqsLoading] = useState(true);
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [totalTicketsCount, setTotalTicketsCount] = useState(0);
@@ -112,7 +137,7 @@ export default function SupportPage() {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
     socket.on('ticket_reply', handleTicketReply);
-    
+
     // Join room on reconnect if chat is open
     const handleConnect = () => {
       if (selectedChatTicket?._id) {
@@ -120,9 +145,9 @@ export default function SupportPage() {
       }
     };
     socket.on('connect', handleConnect);
-    
-    return () => { 
-      socket.off('ticket_reply', handleTicketReply); 
+
+    return () => {
+      socket.off('ticket_reply', handleTicketReply);
       socket.off('connect', handleConnect);
     };
   }, [socket, selectedChatTicket?._id]);
@@ -147,6 +172,10 @@ export default function SupportPage() {
 
   useEffect(() => {
     fetchTickets(1, false);
+  }, []);
+
+  useEffect(() => {
+    getKitchenFaqs().then((data) => { setFaqs(data); setFaqsLoading(false); });
   }, []);
 
   const fetchTickets = async (pageNum: number = 1, isLoadMore: boolean = false) => {
@@ -283,10 +312,10 @@ export default function SupportPage() {
 
     try {
       if (socket) {
-        socket.emit('send_reply', { 
-          ticketId: selectedChatTicket._id, 
+        socket.emit('send_reply', {
+          ticketId: selectedChatTicket._id,
           message: replyMessage,
-          quotedReplyId: quotingReplyId 
+          quotedReplyId: quotingReplyId
         });
         setReplyMessage("");
         setQuotingReplyId(null);
@@ -311,7 +340,7 @@ export default function SupportPage() {
     const handleConnect = () => {
       socket.emit('join_ticket_room', ticketId);
     };
-    
+
     socket.on('connect', handleConnect);
     if (socket.connected) {
       handleConnect();
@@ -325,7 +354,7 @@ export default function SupportPage() {
   useEffect(() => {
     if (selectedChatTicket) {
       setTimeout(() => chatEndRef.current?.scrollIntoView(), 100);
-      
+
       if (socket && selectedChatTicket._id) {
         const hasUnread = selectedChatTicket.replies?.some(r => r.sender === 'admin' && !r.isRead);
         if (hasUnread) {
@@ -336,8 +365,8 @@ export default function SupportPage() {
   }, [selectedChatTicket, socket]);
 
   const filteredFaqs = faqs.filter(faq =>
-    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+    faq.question.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+    faq.answer.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   );
 
   return (
@@ -397,8 +426,8 @@ export default function SupportPage() {
                     <MessageSquareText className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 text-[11px] md:text-[14px] leading-tight">New Ticket</h4>
-                    <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden md:block">We reply within 24h</p>
+                    <h4 className="font-medium text-gray-900 text-sm md:text-base leading-tight">New Ticket</h4>
+                    <p className="text-xs md:text-sm text-gray-500 mt-0.5 hidden md:block">We reply within 24h</p>
                   </div>
                 </div>
 
@@ -407,8 +436,8 @@ export default function SupportPage() {
                     <Mail className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 text-[11px] md:text-[14px] leading-tight">Email Us</h4>
-                    <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden md:block">support@moncradle.com</p>
+                    <h4 className="font-medium text-gray-900 text-sm md:text-base leading-tight">Email Us</h4>
+                    <p className="text-xs md:text-sm text-gray-500 mt-0.5 hidden md:block">support@moncradle.com</p>
                   </div>
                 </a>
 
@@ -417,8 +446,8 @@ export default function SupportPage() {
                     <Phone className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 text-[11px] md:text-[14px] leading-tight">Call Us</h4>
-                    <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 hidden md:block">1800-402-9900</p>
+                    <h4 className="font-medium text-gray-900 text-sm md:text-base leading-tight">Call Us</h4>
+                    <p className="text-xs md:text-sm text-gray-500 mt-0.5 hidden md:block">1800-402-9900</p>
                   </div>
                 </a>
               </div>
@@ -450,21 +479,21 @@ export default function SupportPage() {
                     <div key={ticket._id} className="p-4 bg-white border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
                       <div className="flex justify-between items-center mb-1.5">
                         <h4 className="font-medium text-gray-900 capitalize text-sm md:text-base">{ticket.issueType.replace(/_/g, ' ')}</h4>
-                        <span className={`text-[9px] md:text-[10px] font-medium px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ml-2 ${ticket.status === 'open' ? 'bg-orange-100 text-orange-600' : ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>{ticket.status.replace('_',' ')}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ml-2 ${ticket.status === 'open' ? 'bg-orange-100 text-orange-600' : ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>{ticket.status.replace('_', ' ')}</span>
                       </div>
-                      <p className="text-xs md:text-sm text-gray-500 font-medium mb-3 line-clamp-2">{ticket.description}</p>
+                      <p className="text-sm md:text-base text-gray-500 font-medium mb-3 line-clamp-2">{ticket.description}</p>
                       <div className="flex items-center justify-between">
-                        <p className="text-[10px] md:text-xs text-gray-400 font-medium">{new Date(ticket.createdAt || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                        <button onClick={() => setSelectedChatTicket(ticket)} className="text-xs md:text-sm font-medium text-[#0F4C2E] bg-[#0F4C2E]/10 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg hover:bg-[#0F4C2E]/20 transition-colors">View Chat</button>
+                        <p className="text-xs md:text-sm text-gray-400 font-medium">{new Date(ticket.createdAt || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                        <button onClick={() => setSelectedChatTicket(ticket)} className="text-sm md:text-base font-medium text-[#0F4C2E] bg-[#0F4C2E]/10 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg hover:bg-[#0F4C2E]/20 transition-colors">View Chat</button>
                       </div>
                     </div>
                   ))}
-                  
+
                   {/* Load More Button */}
                   {tickets.length < totalTicketsCount && (
                     <div className="pt-3 flex justify-center">
-                      <button 
-                        onClick={handleLoadMore} 
+                      <button
+                        onClick={handleLoadMore}
                         disabled={isLoadingMore}
                         className="w-full md:w-auto px-6 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
                       >
@@ -485,18 +514,27 @@ export default function SupportPage() {
                 <h2 className="text-base md:text-xl font-medium text-gray-900">Frequently Asked Questions</h2>
               </div>
 
-              {filteredFaqs.length === 0 ? (
+              {faqsLoading ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredFaqs.length === 0 ? (
                 <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                  <p className="text-xs md:text-sm text-gray-500 font-medium">No answers found for &quot;{searchQuery}&quot;.<br />Please try a different keyword.</p>
+                  <p className="text-sm md:text-base text-gray-500 font-medium">
+                    {searchQuery ? `No answers found for "${searchQuery}".` : "No FAQs available yet."}<br />
+                    {searchQuery && "Please try a different keyword."}
+                  </p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
                   {filteredFaqs.map((faq, index) => {
                     const isOpen = openFaqIndex === index;
                     return (
-                      <div key={index} className={`transition-all duration-300 ${isOpen ? 'bg-[#0F4C2E]/5 rounded-xl md:rounded-2xl' : 'hover:bg-gray-50 rounded-xl md:rounded-2xl'}`}>
+                      <div key={faq._id} className={`transition-all duration-300 ${isOpen ? 'bg-[#0F4C2E]/5 rounded-xl md:rounded-2xl' : 'hover:bg-gray-50 rounded-xl md:rounded-2xl'}`}>
                         <button onClick={() => toggleFaq(index)} className="w-full flex items-center justify-between p-3.5 md:p-5 text-left cursor-pointer focus:outline-none">
-                          <span className={`font-medium text-[13px] md:text-[15px] pr-3 md:pr-4 ${isOpen ? 'text-[#0F4C2E]' : 'text-gray-800'}`}>
+                          <span className={`font-medium text-sm md:text-base pr-3 md:pr-4 ${isOpen ? 'text-[#0F4C2E]' : 'text-gray-800'}`}>
                             {faq.question}
                           </span>
                           <div className={`shrink-0 w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors ${isOpen ? 'bg-[#0F4C2E] text-white' : 'bg-gray-100 text-gray-500'}`}>
@@ -504,7 +542,7 @@ export default function SupportPage() {
                           </div>
                         </button>
                         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                          <div className="px-3.5 md:px-5 pb-3.5 md:pb-5 text-[12px] md:text-sm text-gray-600 leading-relaxed font-medium">
+                          <div className="px-3.5 md:px-5 pb-3.5 md:pb-5 text-sm md:text-base text-gray-600 leading-relaxed font-medium">
                             {faq.answer}
                           </div>
                         </div>
@@ -513,12 +551,13 @@ export default function SupportPage() {
                   })}
                 </div>
               )}
+
             </div>
 
           </div>
         </div>
       </div>
-      
+
       <AnimatePresence>
         {showTicketModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -561,8 +600,8 @@ export default function SupportPage() {
                     className="w-full border border-gray-300 rounded-lg p-2.5 text-sm min-h-[120px] resize-none"
                   ></textarea>
                 </div>
-                <button 
-                  onClick={handleCreateTicket} 
+                <button
+                  onClick={handleCreateTicket}
                   disabled={isSubmitting || !issueType || description.trim().length < 10}
                   className="w-full bg-[#0F4C2E] hover:bg-[#0A331F] text-white py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50"
                 >
@@ -584,8 +623,8 @@ export default function SupportPage() {
                 <div className="flex items-center gap-3">
                   <button onClick={() => setSelectedChatTicket(null)} className="md:hidden"><ChevronLeft className="w-6 h-6" /></button>
                   <div>
-                    <h3 className="font-medium text-[16px] capitalize">{selectedChatTicket.issueType.replace('_', ' ')} Support</h3>
-                    <p className="text-xs text-white/80">{selectedChatTicket.status === 'resolved' ? 'Ticket Closed' : 'We typically reply within 24h'}</p>
+                    <h3 className="font-medium text-lg capitalize">{selectedChatTicket.issueType.replace('_', ' ')} Support</h3>
+                    <p className="text-sm text-white/80">{selectedChatTicket.status === 'resolved' ? 'Ticket Closed' : 'We typically reply within 24h'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 md:gap-3">
@@ -618,14 +657,14 @@ export default function SupportPage() {
 
                     return (
                       <div id={`msg-${reply._id}`} key={reply._id || idx} className={`flex flex-col group ${isMine ? 'items-end' : 'items-start'} px-2 relative`}>
-                        <div 
+                        <div
                           onClick={() => !reply.isDeleted && setOpenDropdownId(openDropdownId === reply._id ? null : (reply._id ?? null))}
-                          className={`relative max-w-[85%] rounded-lg px-3 pt-2 pb-1.5 text-[14.5px] cursor-pointer active:bg-black/5 transition-colors ${isMine ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-none' : 'bg-white text-[#111b21] rounded-tl-none'}`}
+                          className={`relative max-w-[85%] rounded-lg px-3 pt-2 pb-1.5 text-base cursor-pointer active:bg-black/5 transition-colors ${isMine ? 'bg-[#d9fdd3] text-[#111b21] rounded-tr-none' : 'bg-white text-[#111b21] rounded-tl-none'}`}
                         >
-                          
+
                           {/* Dropdown Chevron (WhatsApp style) */}
                           {!reply.isDeleted && (
-                            <button 
+                            <button
                               className={`absolute top-1 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 bg-gradient-to-l ${isMine ? 'from-[#d9fdd3]' : 'from-white'} pl-2`}
                             >
                               <ChevronDown className="h-4 w-4" />
@@ -647,14 +686,14 @@ export default function SupportPage() {
 
                           {/* Quoted Message */}
                           {quotedMsg && (
-                            <div 
+                            <div
                               onClick={(e) => { e.stopPropagation(); reply.quotedReplyId && scrollToMessage(reply.quotedReplyId); }}
                               className="bg-black/5 border-l-4 border-[#00a884] rounded p-2 mb-1 cursor-pointer"
                             >
-                              <div className="text-[11px] font-medium text-[#00a884]">
+                              <div className="text-xs font-medium text-[#00a884]">
                                 {quotedMsg.sender === 'user' ? 'You' : 'Admin'}
                               </div>
-                              <div className="text-[12px] text-gray-600 truncate max-w-full">
+                              <div className="text-sm text-gray-600 truncate max-w-full">
                                 {quotedMsg.message}
                               </div>
                             </div>
@@ -663,7 +702,7 @@ export default function SupportPage() {
                           <div className={`pr-12 whitespace-pre-wrap leading-relaxed ${reply.isDeleted ? 'text-gray-400 italic' : ''}`}>
                             {reply.message}
                           </div>
-                          <div className="text-[10.5px] text-gray-500 flex justify-end items-center mt-1 float-right ml-2 -mb-0.5 gap-1">
+                          <div className="text-xs text-gray-500 flex justify-end items-center mt-1 float-right ml-2 -mb-0.5 gap-1">
                             {reply.isEdited && !reply.isDeleted && <span>Edited</span>}
                             <span>{new Date(reply.createdAt || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {isMine && (
@@ -691,19 +730,19 @@ export default function SupportPage() {
                   {(quotingReplyId || editingReplyId) && (
                     <div className="bg-[#f0f2f5] px-4 py-2 flex items-center justify-between border-b border-gray-200">
                       <div className="flex-1 bg-black/5 border-l-4 border-[#00a884] rounded p-2">
-                        <div className="text-[11px] font-medium text-[#00a884]">
+                        <div className="text-xs font-medium text-[#00a884]">
                           {editingReplyId ? 'Editing Message' : 'Replying to message'}
                         </div>
-                        <div className="text-[12px] text-gray-600 truncate max-w-md">
+                        <div className="text-sm text-gray-600 truncate max-w-md">
                           {editingReplyId ? replyMessage : getQuotedMessage(quotingReplyId!)?.message}
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => {
                           setQuotingReplyId(null);
                           setEditingReplyId(null);
                           setReplyMessage('');
-                        }} 
+                        }}
                         className="p-2 text-gray-500 hover:text-gray-700 ml-2"
                       >
                         <X className="h-5 w-5" />
@@ -713,33 +752,33 @@ export default function SupportPage() {
 
                   <div className="p-3">
                     <form onSubmit={handleSendReply} className="flex items-end gap-2">
-                    <textarea 
-                      ref={textareaRef}
-                      value={replyMessage}
-                      onChange={e => {
-                        setReplyMessage(e.target.value);
-                        e.target.style.height = '48px';
-                        e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendReply(e as any);
-                        }
-                      }}
-                      placeholder="Type a message..."
-                      className="flex-1 px-4 py-3 bg-white rounded-xl focus:outline-none resize-none min-h-[48px] text-[15px] custom-scrollbar"
-                      style={{ height: '48px' }}
-                    />
-                    <button onMouseDown={e => e.preventDefault()} disabled={isReplying || !replyMessage.trim()} type="submit" className="w-12 h-12 flex-shrink-0 bg-[#00a884] rounded-full flex items-center justify-center text-white disabled:opacity-50 hover:bg-[#008f6f]">
-                      <Send className="w-5 h-5 -ml-1 mt-0.5" />
-                    </button>
-                  </form>
+                      <textarea
+                        ref={textareaRef}
+                        value={replyMessage}
+                        onChange={e => {
+                          setReplyMessage(e.target.value);
+                          e.target.style.height = '48px';
+                          e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendReply(e as any);
+                          }
+                        }}
+                        placeholder="Type a message..."
+                        className="flex-1 px-4 py-3 bg-white rounded-xl focus:outline-none resize-none min-h-[48px] text-base custom-scrollbar"
+                        style={{ height: '48px' }}
+                      />
+                      <button onMouseDown={e => e.preventDefault()} disabled={isReplying || !replyMessage.trim()} type="submit" className="w-12 h-12 flex-shrink-0 bg-[#00a884] rounded-full flex items-center justify-center text-white disabled:opacity-50 hover:bg-[#008f6f]">
+                        <Send className="w-5 h-5 -ml-1 mt-0.5" />
+                      </button>
+                    </form>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 bg-gray-50 text-center text-gray-500 text-sm font-medium border-t border-gray-200">
-                     This ticket has been marked as resolved and is closed.
+                  This ticket has been marked as resolved and is closed.
                 </div>
               )}
             </motion.div>
