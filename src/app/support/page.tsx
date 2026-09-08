@@ -11,7 +11,7 @@ import Swal from "sweetalert2";
 import { io, Socket } from 'socket.io-client';
 import axios from "axios";
 
-export interface SupportReply {
+interface SupportReply {
   _id?: string;
   sender: 'user' | 'admin';
   message: string;
@@ -22,7 +22,7 @@ export interface SupportReply {
   isRead?: boolean;
 }
 
-export interface SupportTicket {
+interface SupportTicket {
   _id?: string;
   userId: string;
   orderId?: string;
@@ -40,7 +40,7 @@ const getApiConfig = () => {
   return { apiUrl, token };
 };
 
-export const getSupportTickets = async (page: number = 1, limit: number = 10) => {
+const getSupportTickets = async (page: number = 1, limit: number = 10) => {
   const { apiUrl, token } = getApiConfig();
   const response = await axios.get(`${apiUrl}/support?page=${page}&limit=${limit}`, {
     headers: { Authorization: `Bearer ${token}` }
@@ -48,7 +48,7 @@ export const getSupportTickets = async (page: number = 1, limit: number = 10) =>
   return { tickets: response.data.data, count: response.data.count };
 };
 
-export const createSupportTicket = async (data: Partial<SupportTicket>) => {
+const createSupportTicket = async (data: Partial<SupportTicket>) => {
   const { apiUrl, token } = getApiConfig();
   const response = await axios.post(`${apiUrl}/support`, data, {
     headers: { Authorization: `Bearer ${token}` }
@@ -56,7 +56,7 @@ export const createSupportTicket = async (data: Partial<SupportTicket>) => {
   return response.data.data;
 };
 
-export interface Faq {
+interface Faq {
   _id: string;
   question: string;
   answer: string;
@@ -64,7 +64,7 @@ export interface Faq {
   isActive: boolean;
 }
 
-export const getKitchenFaqs = async (): Promise<Faq[]> => {
+const getKitchenFaqs = async (): Promise<Faq[]> => {
   const { apiUrl, token } = getApiConfig();
   try {
     const response = await axios.get(`${apiUrl}/faqs?targetApp=kitchen`, {
