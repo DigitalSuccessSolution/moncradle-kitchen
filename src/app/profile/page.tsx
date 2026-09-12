@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
-  User, CheckCircle2, MapPin, Building2, Camera, Store, CreditCard, Clock, LogOut, Loader2, Save, Mail, Phone, Edit2, X
+  User, CheckCircle2, MapPin, Building2, Camera, Store, CreditCard, Clock, LogOut, Loader2, Save, Mail, Phone, Edit2, X, Info
 } from "lucide-react";
 import axios from "axios";
 import { useKitchenAuth } from "@/context/KitchenAuthContext";
+import { MapPicker } from "@/components/map/MapPicker";
 
 export default function ProfilePage() {
   const { logout, recheckProfile } = useKitchenAuth();
@@ -36,6 +37,12 @@ export default function ProfilePage() {
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankIfscCode, setBankIfscCode] = useState("");
   const [bankName, setBankName] = useState("");
+
+  // Location
+  const [location, setLocation] = useState<{type: string, coordinates: number[]} | undefined>(undefined);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const DEFAULT_CENTER: [number, number] = [22.7196, 75.8577];
+  const [mapPosition, setMapPosition] = useState<[number, number]>(DEFAULT_CENTER);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -69,6 +76,10 @@ export default function ProfilePage() {
       }
 
       if (profileData) {
+        if (profileData.location && profileData.location.coordinates) {
+          setLocation({ type: 'Point', coordinates: profileData.location.coordinates });
+          setMapPosition([profileData.location.coordinates[1], profileData.location.coordinates[0]]);
+        }
         setKitchenName(profileData.kitchenName || "");
         setFssaiLicenseNumber(profileData.fssaiLicenseNumber || "");
         setGstNumber(profileData.gstNumber || "");
@@ -101,6 +112,55 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setIsFetchingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const data = await response.json();
+
+          if (data && data.address) {
+            const parts = [];
+            if (data.address.road || data.address.suburb || data.address.neighbourhood) parts.push(data.address.road || data.address.suburb || data.address.neighbourhood);
+            if (data.address.city || data.address.town || data.address.village) parts.push(data.address.city || data.address.town || data.address.village);
+            if (data.address.state) parts.push(data.address.state);
+            if (data.address.postcode) parts.push(data.address.postcode);
+            if (parts.length > 0) {
+              setAddress(parts.join(', '));
+            }
+          }
+          
+          setLocation({
+            type: 'Point',
+            coordinates: [lng, lat]
+          });
+          setMapPosition([lat, lng]);
+          
+        } catch (error) {
+          console.error("Reverse geocoding error:", error);
+          setLocation({ type: 'Point', coordinates: [lng, lat] });
+          setMapPosition([lat, lng]);
+        }
+
+        setIsFetchingLocation(false);
+      },
+      (error) => {
+        setIsFetchingLocation(false);
+        alert("Could not fetch location. Please allow location permissions.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,6 +211,7 @@ export default function ProfilePage() {
         preparationCapacityPerDay: preparationCapacityPerDay ? Number(preparationCapacityPerDay) : 0,
         cuisineTypes: cuisineArray,
         isOpen,
+        location: location || { type: 'Point', coordinates: [mapPosition[1], mapPosition[0]] },
         operatingHours: { openTime, closeTime },
         bankDetails: {
           accountName: bankAccountName,
@@ -420,7 +481,42 @@ export default function ProfilePage() {
                       <input type="text" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className={inputClass} placeholder="John Doe" required />
                     </div>
                     <div className="md:col-span-2">
-                      <label className={labelClass}>Full Address</label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className={`${labelClass} mb-0`}>Full Address</label>
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={isFetchingLocation}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all ${
+                            location 
+                              ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200" 
+                              : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 shadow-sm"
+                          }`}
+                        >
+                          {isFetchingLocation ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : location ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : (
+                            <MapPin className="w-3.5 h-3.5" />
+                          )}
+                          {isFetchingLocation ? "Fetching..." : location ? "Detect Current Location" : "Detect Current Location"}
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-1 mb-4">
+                        <p className="text-xs text-slate-500 font-medium px-2 py-1 mb-1 flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5" /> Drag the map to place the pin at your exact kitchen location.
+                        </p>
+                        <MapPicker 
+                          position={mapPosition} 
+                          onPositionChange={(pos: [number, number]) => {
+                            setMapPosition(pos);
+                            setLocation({ type: 'Point', coordinates: [pos[1], pos[0]] });
+                          }} 
+                        />
+                      </div>
+
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 w-4 h-4 text-black/40" />
                         <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} className={`${inputClass} pl-9 resize-none`} placeholder="Complete facility address..." required />

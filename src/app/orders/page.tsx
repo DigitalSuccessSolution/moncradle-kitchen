@@ -827,10 +827,11 @@ export default function IncomingOrdersPage() {
                         Cancel Order
                       </button>
                       <button onClick={() => {
-                        setOrderForProof(selectedOrder.id);
-                        setShowProofModal(true);
-                        setProofFile(null);
-                        setProofPreviewUrl(null);
+                        // setOrderForProof(selectedOrder.id);
+                        // setShowProofModal(true);
+                        // setProofFile(null);
+                        // setProofPreviewUrl(null);
+                        updateOrderStatus(selectedOrder.id, 'ready');
                       }} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg text-[15px] font-medium transition-colors">
                         Mark as Ready
                       </button>
